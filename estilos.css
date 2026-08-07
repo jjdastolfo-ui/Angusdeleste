@@ -103,7 +103,7 @@ h3{font-size:22px;font-weight:400}
 .toro-card{display:block;text-decoration:none;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--paper);transition:transform .25s,box-shadow .25s,border-color .25s}
 .toro-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(15,40,71,.13);border-color:rgba(201,162,75,.5)}
 .toro-foto{position:relative;aspect-ratio:4/3;background:linear-gradient(160deg,var(--navy),var(--navy2));overflow:hidden}
-.toro-foto img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .5s}
+.toro-foto img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:var(--pos,center 40%);transition:transform .5s}
 .toro-card:hover .toro-foto img{transform:scale(1.04)}
 .toro-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-style:italic;font-size:26px;color:rgba(201,162,75,.55)}
 .toro-info{padding:20px 22px 22px}
@@ -115,8 +115,8 @@ h3{font-size:22px;font-weight:400}
 .toro-card:hover .toro-go span{transform:translateX(4px)}
 
 /* ── FICHA DE TORO ── */
-.ficha-hero{position:relative;height:clamp(280px,42vh,420px);background:linear-gradient(160deg,var(--navy),var(--navy2));overflow:hidden}
-.ficha-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ficha-hero{position:relative;height:clamp(320px,52vh,520px);background:linear-gradient(160deg,var(--navy),var(--navy2));overflow:hidden}
+.ficha-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:var(--pos,center 42%)}
 .ficha-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(10,29,53,.92),rgba(10,29,53,.15) 70%)}
 .ficha-hero-txt{position:absolute;left:0;right:0;bottom:0;z-index:2}
 .ficha-hero-txt .wrap{padding-bottom:30px}
@@ -143,6 +143,41 @@ h3{font-size:22px;font-weight:400}
 .dep.top .dep-v{color:var(--gold)}
 .dep-r{font-family:var(--mono);font-size:9px;color:var(--ink2);margin-top:5px}
 .nota-eval{font-family:var(--mono);font-size:9.5px;color:var(--ink2);margin-top:10px}
+
+
+/* ── CARRUSEL DE FICHA ── */
+.carr{position:relative;height:clamp(320px,56vh,560px);background:linear-gradient(160deg,var(--navy),var(--navy2));overflow:hidden}
+.carr-track{display:flex;height:100%;transition:transform .5s cubic-bezier(.4,0,.2,1)}
+.carr-slide{min-width:100%;height:100%;position:relative}
+.carr-slide img{width:100%;height:100%;object-fit:cover;object-position:var(--pos,center 45%)}
+.carr::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(10,29,53,.9),rgba(10,29,53,.1) 62%);pointer-events:none;z-index:2}
+.carr-txt{position:absolute;left:0;right:0;bottom:0;z-index:4}
+.carr-txt .wrap{padding-bottom:30px}
+.carr-nav{
+  position:absolute;top:50%;transform:translateY(-50%);z-index:5;
+  width:46px;height:46px;border-radius:50%;border:1px solid rgba(244,241,234,.45);
+  background:rgba(10,29,53,.42);backdrop-filter:blur(6px);color:var(--paper);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:20px;line-height:1;transition:background .2s,border-color .2s,transform .2s;
+}
+.carr-nav:hover{background:var(--gold);border-color:var(--gold);color:var(--navy-deep);transform:translateY(-50%) scale(1.06)}
+.carr-nav:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.carr-prev{left:20px}
+.carr-next{right:20px}
+.carr-dots{position:absolute;bottom:18px;right:24px;z-index:5;display:flex;gap:8px}
+.carr-dot{width:9px;height:9px;border-radius:50%;border:1px solid rgba(244,241,234,.7);background:transparent;cursor:pointer;padding:0;transition:background .25s,transform .25s}
+.carr-dot.on{background:var(--gold);border-color:var(--gold);transform:scale(1.2)}
+.carr-count{
+  position:absolute;top:20px;right:24px;z-index:5;
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:rgba(244,241,234,.85);
+  background:rgba(10,29,53,.42);backdrop-filter:blur(6px);padding:6px 12px;border-radius:2px;
+  border:1px solid rgba(244,241,234,.2);
+}
+@media(max-width:900px){
+  .carr-nav{width:38px;height:38px;font-size:17px}
+  .carr-prev{left:12px}.carr-next{right:12px}
+  .carr-dots{right:16px;bottom:14px}
+}
 
 /* ── SERVICIOS ── */
 .servicios{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden}

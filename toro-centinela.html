@@ -35,9 +35,13 @@
   </div>
 </header>
 
-<div class="ficha-hero">
-  <img src="toro-centinela.jpg" alt="Centinela" onerror="this.style.display='none'">
-  <div class="ficha-hero-txt">
+<div class="carr" id="carr">
+  <div class="carr-track" id="track"><div class="carr-slide"><img src="toro-centinela.jpg" alt="Centinela en pastoreo — perfil" style="--pos:center 48%"></div><div class="carr-slide"><img src="toro-centinela-2.jpg" alt="Centinela con el rodeo y las sierras de fondo" style="--pos:center 42%" loading='lazy'></div><div class="carr-slide"><img src="toro-centinela-3.jpg" alt="Centinela sobre campo natural" style="--pos:center 46%" loading='lazy'></div></div>
+  <button class="carr-nav carr-prev" onclick="mover(-1)" aria-label="Foto anterior">&#8249;</button>
+  <button class="carr-nav carr-next" onclick="mover(1)" aria-label="Foto siguiente">&#8250;</button>
+  <div class="carr-count"><span id="carr-n">1</span> / 3</div>
+  <div class="carr-dots"><button class="carr-dot on" onclick="irA(0)" aria-label="Foto 1"></button><button class="carr-dot" onclick="irA(1)" aria-label="Foto 2"></button><button class="carr-dot" onclick="irA(2)" aria-label="Foto 3"></button></div>
+  <div class="carr-txt">
     <div class="wrap">
       <div class="crumb"><a href="index.html">Inicio</a> / <a href="padres.html">Toros padres</a></div>
       <h1 class="ficha-nom">Centinela</h1>
@@ -58,13 +62,13 @@
     </div>
     <div class="geneal rv"><div class="g-row"><span class="g-rol">Padre</span><span class="g-nom">Don Jacinto 88 Tehuelche 29</span><span class="g-hbu">HBU S180307</span></div><div class="g-row"><span class="g-rol">Madre</span><span class="g-nom">Camba Pyta 1309 Cazuza 3467</span><span class="g-hbu">HBU 140924</span></div><div class="g-row"><span class="g-rol">Ab. paterno</span><span class="g-nom">Doblehache 293 Bigua T/E</span><span class="g-hbu">HBU S000535</span></div><div class="g-row"><span class="g-rol">Ab. materno</span><span class="g-nom">Camba Pyta 289 Quebrant 1914 TE</span><span class="g-hbu">HBU 0120020</span></div></div>
 
-    <div class="eval-block rv" style="margin-top:48px">
+    <div class="rv" style="margin-top:48px">
       <div class="eval-tit"><span>DEPs · SER INIA Uruguay</span><span class="eval-src">Genealogía ARU 02.06.2026</span></div>
       <div class="deps"><div class="dep"><div class="dep-c">Peso al nacer</div><div class="dep-v">+0,95</div><div class="dep-r">Media 0,62</div></div><div class="dep top"><div class="dep-c">Peso al destete</div><div class="dep-v">+15,28</div><div class="dep-r">Media 13,10</div></div><div class="dep top"><div class="dep-c">Peso 18 meses</div><div class="dep-v">+21,39</div><div class="dep-r">Media 17,17</div></div><div class="dep top"><div class="dep-c">Peso adulto vaca</div><div class="dep-v">+17,75</div><div class="dep-r">Media 17,01</div></div><div class="dep"><div class="dep-c">Circ. escrotal</div><div class="dep-v">+0,23</div><div class="dep-r">Media 0,30</div></div><div class="dep"><div class="dep-c">Hab. lechera</div><div class="dep-v">&minus;0,72</div><div class="dep-r">Media &minus;0,55</div></div><div class="dep"><div class="dep-c">Área ojo de bife</div><div class="dep-v">+0,641</div><div class="dep-r">Media 0,809</div></div><div class="dep"><div class="dep-c">Espesor grasa</div><div class="dep-v">&minus;0,027</div><div class="dep-r">Media 0,001</div></div><div class="dep top"><div class="dep-c">Marmoleo</div><div class="dep-v">+0,020</div><div class="dep-r">Media 0,005</div></div><div class="dep"><div class="dep-c">Hijos evaluados</div><div class="dep-v">4</div><div class="dep-r">En SRGen</div></div></div>
       <div class="nota-eval">Destacado en dorado: valor favorable respecto a la media de la raza.</div>
     </div>
 
-    <div class="eval-block rv" style="margin-top:44px">
+    <div class="rv" style="margin-top:44px">
       <div class="eval-tit"><span>EBVs · BREEDPLAN Angus Argentino</span><span class="eval-src">Evaluación agosto 2026 · 9 progenies · 1 rodeo</span></div>
       <div class="deps"><div class="dep top"><div class="dep-c">Gestación (días)</div><div class="dep-v">&minus;2,0</div><div class="dep-r">Media &minus;1,9</div></div><div class="dep"><div class="dep-c">Peso nacimiento</div><div class="dep-v">+1,4</div><div class="dep-r">Media +0,7</div></div><div class="dep"><div class="dep-c">Peso 200 días</div><div class="dep-v">+23</div><div class="dep-r">Media +24</div></div><div class="dep"><div class="dep-c">Peso 400 días</div><div class="dep-v">+32</div><div class="dep-r">Media +36</div></div><div class="dep"><div class="dep-c">Peso 600 días</div><div class="dep-v">+46</div><div class="dep-r">Media +57</div></div><div class="dep"><div class="dep-c">Peso vaca adulta</div><div class="dep-v">+42</div><div class="dep-r">Media +45</div></div><div class="dep"><div class="dep-c">Leche</div><div class="dep-v">+5</div><div class="dep-r">Media +8</div></div><div class="dep"><div class="dep-c">Circ. escrotal</div><div class="dep-v">+0,1</div><div class="dep-r">Media +1,5</div></div><div class="dep"><div class="dep-c">Peso de res</div><div class="dep-v">+31</div><div class="dep-r">Media +39</div></div><div class="dep"><div class="dep-c">Rend. carne</div><div class="dep-v">+0,8</div><div class="dep-r">Media +0,9</div></div></div>
     </div>
@@ -91,6 +95,34 @@
     </div>
   </div>
 </div>
+
+<script>
+(function(){
+  var i=0, total=3;
+  var track=document.getElementById('track'), num=document.getElementById('carr-n');
+  var dots=document.querySelectorAll('.carr-dot');
+  function render(){
+    track.style.transform='translateX(-'+(i*100)+'%)';
+    if(num) num.textContent=i+1;
+    dots.forEach(function(d,k){d.classList.toggle('on',k===i)});
+  }
+  window.mover=function(d){ i=(i+d+total)%total; render(); };
+  window.irA=function(k){ i=k; render(); };
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowLeft') mover(-1);
+    if(e.key==='ArrowRight') mover(1);
+  });
+  var x0=null;
+  var c=document.getElementById('carr');
+  c.addEventListener('touchstart',function(e){x0=e.touches[0].clientX},{passive:true});
+  c.addEventListener('touchend',function(e){
+    if(x0===null) return;
+    var dx=e.changedTouches[0].clientX-x0;
+    if(Math.abs(dx)>45) mover(dx<0?1:-1);
+    x0=null;
+  },{passive:true});
+})();
+</script>
 
 <footer>
   <div class="foot">
