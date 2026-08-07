@@ -36,11 +36,15 @@
 </header>
 
 <div class="carr" id="carr">
-  <div class="carr-track" id="track"><div class="carr-slide"><img src="toro-centinela.jpg" alt="Centinela en pastoreo — perfil" style="--pos:center 48%"></div><div class="carr-slide"><img src="toro-centinela-2.jpg" alt="Centinela con el rodeo y las sierras de fondo" style="--pos:center 42%" loading='lazy'></div><div class="carr-slide"><img src="toro-centinela-3.jpg" alt="Centinela sobre campo natural" style="--pos:center 46%" loading='lazy'></div></div>
-  <button class="carr-nav carr-prev" onclick="mover(-1)" aria-label="Foto anterior">&#8249;</button>
-  <button class="carr-nav carr-next" onclick="mover(1)" aria-label="Foto siguiente">&#8250;</button>
+  <div class="carr-track" id="track"><div class="carr-slide" onclick="abrirLB(0)"><img src="toro-centinela.jpg" alt="Centinela en pastoreo — perfil" style="--pos:center 48%"></div><div class="carr-slide" onclick="abrirLB(1)"><img src="toro-centinela-2.jpg" alt="Centinela con el rodeo y las sierras de fondo" style="--pos:center 42%" loading='lazy'></div><div class="carr-slide" onclick="abrirLB(2)"><img src="toro-centinela-3.jpg" alt="Centinela sobre campo natural" style="--pos:center 46%" loading='lazy'></div></div>
+  <button class="carr-nav carr-prev" onclick="event.stopPropagation();mover(-1)" aria-label="Foto anterior">&#8249;</button>
+  <button class="carr-nav carr-next" onclick="event.stopPropagation();mover(1)" aria-label="Foto siguiente">&#8250;</button>
   <div class="carr-count"><span id="carr-n">1</span> / 3</div>
-  <div class="carr-dots"><button class="carr-dot on" onclick="irA(0)" aria-label="Foto 1"></button><button class="carr-dot" onclick="irA(1)" aria-label="Foto 2"></button><button class="carr-dot" onclick="irA(2)" aria-label="Foto 3"></button></div>
+  <div class="carr-zoom">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg>
+    Tocar para ampliar
+  </div>
+  <div class="carr-dots"><button class="carr-dot on" onclick="event.stopPropagation();irA(0)" aria-label="Foto 1"></button><button class="carr-dot" onclick="event.stopPropagation();irA(1)" aria-label="Foto 2"></button><button class="carr-dot" onclick="event.stopPropagation();irA(2)" aria-label="Foto 3"></button></div>
   <div class="carr-txt">
     <div class="wrap">
       <div class="crumb"><a href="index.html">Inicio</a> / <a href="padres.html">Toros padres</a></div>
@@ -48,6 +52,15 @@
       <div class="ficha-sub">RP 277 · HBU 186223 · Pedigrí · Colorado · 2019</div>
     </div>
   </div>
+</div>
+
+<!-- lightbox -->
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Foto ampliada">
+  <button class="lb-close" onclick="cerrarLB()" aria-label="Cerrar">&times;</button>
+  <button class="lb-nav lb-prev" onclick="lbMover(-1)" aria-label="Anterior">&#8249;</button>
+  <button class="lb-nav lb-next" onclick="lbMover(1)" aria-label="Siguiente">&#8250;</button>
+  <div class="lb-stage" id="lb-stage"><img id="lb-img" src="" alt=""></div>
+  <div class="lb-cap"><b>Centinela</b><span id="lb-cap"></span></div>
 </div>
 
 <section>
@@ -98,29 +111,57 @@
 
 <script>
 (function(){
-  var i=0, total=3;
+  var SRC=["toro-centinela.jpg", "toro-centinela-2.jpg", "toro-centinela-3.jpg"], CAP=["Centinela en pastoreo — perfil", "Centinela con el rodeo y las sierras de fondo", "Centinela sobre campo natural"], TOTAL=3;
+  var i=0, li=0;
   var track=document.getElementById('track'), num=document.getElementById('carr-n');
   var dots=document.querySelectorAll('.carr-dot');
+  var lb=document.getElementById('lb'), lbImg=document.getElementById('lb-img'), lbCap=document.getElementById('lb-cap');
+
   function render(){
     track.style.transform='translateX(-'+(i*100)+'%)';
     if(num) num.textContent=i+1;
     dots.forEach(function(d,k){d.classList.toggle('on',k===i)});
   }
-  window.mover=function(d){ i=(i+d+total)%total; render(); };
+  window.mover=function(d){ i=(i+d+TOTAL)%TOTAL; render(); };
   window.irA=function(k){ i=k; render(); };
-  document.addEventListener('keydown',function(e){
-    if(e.key==='ArrowLeft') mover(-1);
-    if(e.key==='ArrowRight') mover(1);
+
+  function pintarLB(){ lbImg.src=SRC[li]; lbImg.alt=CAP[li]; lbCap.textContent=CAP[li]+' · '+(li+1)+' de '+TOTAL; }
+  window.abrirLB=function(k){
+    li=(typeof k==='number')?k:i;
+    pintarLB();
+    lb.classList.add('open');
+    document.documentElement.style.overflow='hidden';
+  };
+  window.cerrarLB=function(){
+    lb.classList.remove('open');
+    document.documentElement.style.overflow='';
+  };
+  window.lbMover=function(d){ li=(li+d+TOTAL)%TOTAL; pintarLB(); };
+
+  lb.addEventListener('click',function(e){
+    if(e.target===lb || e.target.classList.contains('lb-stage')) cerrarLB();
   });
-  var x0=null;
-  var c=document.getElementById('carr');
-  c.addEventListener('touchstart',function(e){x0=e.touches[0].clientX},{passive:true});
-  c.addEventListener('touchend',function(e){
-    if(x0===null) return;
-    var dx=e.changedTouches[0].clientX-x0;
-    if(Math.abs(dx)>45) mover(dx<0?1:-1);
-    x0=null;
-  },{passive:true});
+  document.addEventListener('keydown',function(e){
+    var abierto=lb.classList.contains('open');
+    if(e.key==='Escape'){ cerrarLB(); return; }
+    if(e.key==='ArrowLeft')  abierto?lbMover(-1):mover(-1);
+    if(e.key==='ArrowRight') abierto?lbMover(1):mover(1);
+  });
+
+  function swipe(el, cb){
+    var x0=null;
+    el.addEventListener('touchstart',function(e){x0=e.touches[0].clientX},{passive:true});
+    el.addEventListener('touchend',function(e){
+      if(x0===null) return;
+      var dx=e.changedTouches[0].clientX-x0;
+      if(Math.abs(dx)>45) cb(dx<0?1:-1);
+      x0=null;
+    },{passive:true});
+  }
+  swipe(document.getElementById('carr'), function(d){ mover(d); });
+  swipe(lb, function(d){ lbMover(d); });
+
+  window.addEventListener('pageshow',function(){ document.documentElement.style.overflow=''; lb.classList.remove('open'); });
 })();
 </script>
 
