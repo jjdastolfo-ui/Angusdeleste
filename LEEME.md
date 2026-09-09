@@ -1,0 +1,481 @@
+# RODEO
+
+Sistema ganadero de cabaña: un bot que es Claude con acceso directo a la base,
+un tablero con todo lo de cada animal, y las herramientas para meter y sacar
+datos sin fricción.
+
+## Qué hay
+
+| Archivo | Qué hace |
+|---|---|
+| `server.js` | el servidor: rutas y conexión de todo |
+| `bot.js` | el bot: Claude con razonamiento extendido, sus herramientas, la memoria y las conversaciones |
+| `plantel.js` | todo lo que se calcula de cada vientre: estado, eficiencia, bloques, ficha reproductiva |
+| `animales.js` | búsqueda de cualquier animal (tolera "011" por "11", "b 332" por "B332"), ficha general, terminación |
+| `exportar.js` | emisión de archivos: Excel, CSV, página imprimible, JSON; archivos que arma el bot |
+| `relevar.js` | carga de campo con validación: pesadas, sanidad, nacimientos, mediciones, notas; importar CSV; planilla para el campo |
+| `xlsx.js` | escribe Excel sin dependencias: encabezado pintado, filtro, panel congelado, números y fechas reales |
+| `destinos.js` | a dónde va cada animal cuando sale del plantel |
+| `public/index.html` | el tablero |
+| `datos/semilla.js` | arma una base de prueba para correr en la compu (`npm run semilla`) |
+| `datos/prueba.js` | pruebas automáticas de todo, con un Claude simulado (`npm run prueba`) |
+| `datos/preguntas.js` · `datos/evaluar.js` | el banco de preguntas y el corredor que mide al bot de verdad (`npm run evaluar`) |
+
+## Correr en la compu
+
+```bash
+npm install
+node datos/semilla.js                     # base de prueba en ./data/principal.db
+ANTHROPIC_API_KEY=sk-... DB_DIR=./data node server.js
+```
+
+Abre en http://localhost:3001. Sin clave de API el tablero anda igual; sólo el chat no responde.
+
+## Variables en Railway
+
+| Variable | Para qué |
+|---|---|
+| `ANTHROPIC_API_KEY` | la clave de la API |
+| `DB_DIR` | dónde vive la base. En Railway: `/data`, con un volumen montado ahí |
+| `CAMPOS` | JSON con los campos (ver abajo) |
+| `MODELO` | opcional. El modelo bueno, para lo que hay que pensar. Por defecto `claude-opus-5` |
+| `MODELO_SIMPLE` | opcional. El barato, para consultas directas y cargas. Por defecto `claude-haiku-4-5` |
+| `MODELO_RUTEO` | opcional. `grande` (por defecto): piensa Opus en todo. `auto` reparte con el barato; `simple`, todo al barato |
+| `ESFUERZO` | opcional. `medium` por defecto (alcanza para el uso diario). `low` para gastar lo mínimo, `high`/`xhigh`/`max` para preguntas difíciles |
+| `TWILIO_SID` / `TWILIO_TOKEN` (o `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN`) | sólo si se usa WhatsApp |
+| `RESPALDO_CLAVE` (o `CLAVE_BACKUP`) | una clave cualquiera; habilita `/api/respaldo?clave=...` para bajar una copia de la base |
+| `WHATSAPP_PERMITIDOS` | números que pueden hablarle, separados por coma (`5491155551234,5491166665678`). Sin esto, cualquiera |
+| `URL_PUBLICA` | la dirección de la app (`https://tu-app.up.railway.app`), para que los links lleguen bien al teléfono |
+| `WHATSAPP_CAMPOS` | si hay varios campos: JSON número del remitente → clave (`{"5491155551234":"videla"}`) |
+| `WHATSAPP_<SUFIJO>` | otro número del bot (`WHATSAPP_POSTA=whatsapp:+549…`), con su cuenta `TWILIO_SID_<SUFIJO>` / `TWILIO_TOKEN_<SUFIJO>` y su campo `WHATSAPP_CAMPO_<SUFIJO>` (si no está, se busca un campo cuya clave contenga el sufijo: POSTA → `angus_la_posta`) |
+
+Node 22 o más nuevo (`engines` en `package.json` lo pide; Railway lo respeta). La
+versión 13 de `better-sqlite3` trae el binario compilado para Node 22 a 25, así
+no hace falta compilar nada ni en Railway ni en la compu.
+
+Ejemplo de `CAMPOS` (cada campo es una base aparte, `/data/<clave>.db`):
+
+```json
+{"principal":{"nombre":"Angus del Este","empresa":"improlux"},"triunfo":{"nombre":"El Triunfo","empresa":"improlux"}}
+```
+
+## Empresas y multicampo
+
+Una empresa tiene uno o más campos y un sistema financiero. Los campos dicen a
+qué empresa pertenecen (`empresa` en `CAMPOS`); la empresa se describe en
+`EMPRESAS`:
+
+```json
+{"improlux":{"nombre":"Improlux","finanzas_url":"https://improlux.up.railway.app","finanzas_campo":"AMAKAIK"},
+ "amakaik":{"nombre":"Cabaña Amakaik","finanzas_url":"https://videla-production.up.railway.app","finanzas_campo":"AMAKAIK"}}
+```
+
+Si `EMPRESAS` no está, se arma sola con las empresas que nombran los campos y
+usa `FINANZAS_URL` / `FINANZAS_CAMPO` globales.
+
+### Animales que se cruzan entre campos
+
+Los campos de una empresa comparten animales: una vaca queda en uno y su ternero
+se cría en otro, un toro sirve en los tres. Antes, ese ternero apuntaba a una
+madre que no estaba en su base y el sistema decía "no la encuentro".
+
+En la pestaña **Empresa**, "Madres y padres que están en otro campo" revisa todos
+los campos y clasifica cada caso:
+
+| Qué encontró | Qué hace |
+|---|---|
+| El RP está escrito distinto ("27" por "027") | lo corrige contra el propio campo |
+| El padre está por nombre ("Hércules") y el toro está acá | lo pasa al RP |
+| La madre o el padre están en otro campo de la empresa | anota el vínculo (`madre_campo`) sin mover al animal |
+| Aparece en más de un lugar | lo deja marcado: hay que elegir a mano, desde la ficha |
+| Es semen o un toro de afuera ("KARE 16", "IVAR 4") | lo reconoce como externo, no como error |
+| No está en ningún campo | lo lista para cargarlo |
+
+**Los hijos cuentan aunque estén en otro campo, sin tener que arreglar nada.** Una
+vaca de un campo con terneros criándose en otro tiene sus partos, su destete
+promedio, su eficiencia, su intervalo entre partos y su estado (CRIANDO, DESTETÓ)
+calculados con esos hijos, y el historial de partos dice en qué campo nació cada
+uno. Lo mismo con los toros: suman los hijos que tuvieron sirviendo en otro campo.
+Pasa solo, al leer: no hace falta pedirle nada al bot.
+
+**El mismo ternero cargado dos veces.** En las cargas viejas pasa que un ternero
+se anotó en el campo de la madre con un RP armado ("HB557-21" = la madre B557,
+año 21) y otra vez en el campo donde se crió, con su RP de verdad. Se reconocen
+porque son de la misma madre, nacieron el mismo día, son del mismo sexo y pesaron
+casi lo mismo. Cuentan como **un solo parto** desde el momento en que se lee, y
+en el historial queda el RP real, no el armado. Para limpiarlo de una vez, en la
+pestaña Empresa: "Terneros cargados dos veces" los lista y "Unificar" marca el
+repetido como DUPLICADO con una nota (no se borra nada, y deja de contar).
+Un mellizo de distinto sexo nunca se toma por duplicado.
+
+Esa misma pantalla busca ahora los que están **dos veces dentro de un mismo
+campo**, que es lo que pasaba cuando el parto se cargaba una vez por la libreta y
+otra dictada al bot: como venían por caravana control, el RP provisorio se corría
+solo (`C1`, `C2`) y el duplicado no cantaba. Queda el que ya tiene RP definitivo;
+si los dos son provisorios, el que tiene más datos, y en el empate el que se
+cargó primero. Al cargar ya no puede volver a pasar: ver **Relevar**.
+
+Para no equivocarse cuando dos campos tienen animales con el mismo número, una
+cría se atribuye a la madre de otro campo sólo si no puede ser de una madre del
+suyo (o el vínculo ya está anotado). El asterisco al lado de "Partos" o "Hijos"
+avisa que hay hijos de otros campos incluidos.
+
+Con el vínculo anotado, la ficha del ternero muestra a la madre con su campo y un
+link para ir; y en la ficha de la madre aparecen los hijos que tiene en los otros
+campos. La búsqueda entiende también "46 VERDE" (caravana y color).
+
+Rutas: `GET /api/vinculos` (con `?empresa=1` para todos los campos),
+`POST /api/vinculos` para arreglar, `GET /api/buscar-empresa?q=` para encontrar un
+RP en cualquier campo, y `POST /api/vinculos/externos` para anotar el semen.
+El bot lo hace con la herramienta `vinculos`.
+
+Con más de un campo aparece la pestaña **Empresa**: cabezas, vientres, parición,
+toros y terminación por campo, el stock consolidado por categoría (el que lee el
+financiero en `/api/rodeo-resumen?empresa=…`) y el formulario de **traslados**.
+Un traslado copia al animal con todo su historial al campo de destino y lo deja
+como TRASLADADO en el origen; avisa si una vaca tiene ternero al pie que no viaja.
+También por `POST /api/traslados {rps, desde, hasta, fecha, motivo, simular}` y
+por el bot ("pasá la 23 y la 45 a El Triunfo").
+
+El bot está parado en un campo (el del tablero o el del número de WhatsApp,
+`WHATSAPP_CAMPOS`), pero con la herramienta `campos` ve la empresa entera y
+compara campos. Las ventas van al financiero de la empresa del campo.
+
+## Buscar
+
+Arriba a la derecha (o tecla `/`) se busca cualquier animal: RP, caravana
+electrónica, HBA, madre, padre o palabras de las notas. Entiende cómo se escribe
+en la manga: `011` y `11` son lo mismo, `b 332` es `B332`, `hércules` encuentra
+a todos los hijos de Hércules. Enter abre la ficha.
+
+La ficha existe para todos los animales, no sólo los vientres: pesadas con
+ganancia diaria, sanidad, lotes, hijos, notas. Desde ahí se pesa, se anota y
+se bajan sus pesadas.
+
+Cada tabla tiene su propio filtro (mismo criterio), filtros por pelaje,
+categoría, estado, bloque y sexo, y un selector de columnas que se recuerda.
+
+## Las pestañas del tablero
+
+Cada pestaña tiene su propia regla; un animal puede estar en varias.
+
+| Pestaña | Quién aparece |
+|---|---|
+| Plantel | hembras activas que son VACA o VIENTRE, o que ya tienen cría, o que entraron a servicio, **sin destino de salida marcado** |
+| Toros | machos activos con categoría TORO, **sin destino de salida marcado**. Sus hijos se cuentan por `padre_rp` igual al RP **o al nombre** del toro |
+| Nacimientos | nacidos en el año de parición en curso, con madre cargada |
+| Recría | activos de 6 a 20 meses |
+| Terminación | los que están en un **lote** cuyo nombre contiene TERMINACION o CORRAL, más los marcados con un destino de terminación que todavía no salieron (columna Origen: "en corral" o "marcado") |
+| Destinos | lo marcado en la tabla `destinos` para la temporada actual. Un destino de salida (venta directa, venta preñada, terminación) saca al animal de Plantel y Toros desde que se decide; QUEDA y TORO REPRODUCTOR no. Registrar la salida lo pasa a VENDIDO; sacarle el destino lo devuelve |
+| No destetaron | las del plantel con estado FALLÓ |
+| Todos | todos los registrados, con filtro por estado |
+
+Los animales tienen columna `nombre` (se agrega sola en bases viejas): sirve
+sobre todo para los toros, así "Hércules" se encuentra y se cuenta como padre.
+
+## Exportar
+
+Botón **Exportar** en cada tabla:
+
+- **Excel / CSV / Imprimir** de lo que se ve: respeta filtros, orden y columnas elegidas.
+- **Planilla de relevamiento** con los animales a la vista y columnas vacías para anotar.
+- **Rodeo completo**: un Excel con una hoja por tabla.
+- Pesadas, servicios, sanidad, notas y lotes completos.
+
+Rutas, por si se usan de afuera:
+
+| Ruta | Qué devuelve |
+|---|---|
+| `GET /api/exportar/:conjunto.:formato` | `plantel`, `animales`, `nacimientos`, `recria`, `terminacion`, `destinos`, `fallos`, `pesadas`, `servicios`, `sanidad`, `mediciones`, `notas`, `lotes`, `rodeo` · en `xlsx`, `csv`, `html`, `json` · `?rps=a,b&columnas=rp,peso&orden=rp&desc=1` |
+| `POST /api/exportar` | lo mismo con `{conjunto, formato, rps, columnas, filtro, orden}` |
+| `GET /t/:slug.xlsx` · `.csv` | las tablas de un tablero armado por el bot |
+| `GET /api/archivos` · `/archivos/:id/:nombre` | los archivos que armó el bot |
+| `GET /api/planilla?lote_id=` · `?rps=` · `?conjunto=` | planilla para el campo (`&formato=html` para imprimir) |
+
+El CSV sale con `;` y coma decimal, que es lo que abre bien el Excel en
+español. `?sep=,` para el otro.
+
+## Relevar
+
+Pestaña **Relevar**. Todo tiene dos pasos: *Revisar* muestra fila por fila qué
+entendió, qué RP no reconoce y qué no cierra; *Confirmar* escribe.
+
+- **Pesadas**: se pega `RP peso`, una línea por animal, como está en la libreta. Avisa si un peso bajó más de 12% o subió más de 3 kg/día respecto de la pesada anterior, y no repite una pesada ya cargada.
+- **Sanidad**: un producto a una lista de RP, a un lote o a todos.
+- **Nacimientos**: `caravana-control madre fecha sexo peso [pelaje] [padre]`. El ternero queda con la caravana control (número y color) y un RP provisorio `C`+número, marcado "sin RP" en Nacimientos. Dos cosas las resuelve solo, y son las que más se erraban a mano:
+  - **No carga dos veces el mismo parto.** Si esa madre ya tiene una cría con esa fecha (±5 días) y del mismo sexo, lo rechaza y dice con qué RP quedó. Antes esto no se veía: al venir por caravana control, el RP provisorio se corre solo para no pisar al que ya está, así que el duplicado entraba con otro número. Dos de distinto sexo pasan (son mellizos); dos del mismo sexo entran sólo con `mellizos: true`.
+  - **El padre lo saca de la fecha.** La gestación son 283 días: cruza la fecha de nacimiento con los servicios de la madre y pone el padre solo, diciendo de dónde lo sacó (“por la IATF del 15-11: nació a 2 días de la fecha probable”, “repaso con PONCHO”). Si hay más de un candidato, o ningún servicio explica esa fecha, lo deja vacío y avisa en vez de inventarlo. Si le dictan un padre que no cierra con la fecha, lo carga igual pero lo dice.
+  - Avisa también si la madre no existe, si figura como macho o si ya tuvo otra cría este año.
+- **Asignar RP / chip**: `control RP-definitivo [chip]`. Es el paso siguiente: el RP provisorio se reemplaza por el definitivo y se carga el chip; madre, pesadas y notas siguen con el animal. También desde la ficha del ternero. Si hay dos controles con el mismo número, se distingue por color.
+- **Mediciones**: CC, CE, altura, frame.
+- **Notas**: `RP texto`. Las palabras clave (renga, mala madre, abortó…) se entienden solas.
+- **Importar planilla**: un CSV de otro sistema, de la balanza o la planilla de RODEO llenada. Detecta separador y columnas por sinónimos.
+- **Planilla para el campo**: la lista de animales con columnas vacías, en Excel o para imprimir.
+
+Rutas: `POST /api/relevar/pesadas|sanidad|nacimientos|mediciones|notas` y
+`POST /api/importar/csv`, todas con `simular: true` para ver sin escribir.
+
+## El bot
+
+Es Claude Opus 5 con razonamiento extendido (adaptive thinking, esfuerzo alto)
+y la base en la mano. No tiene respuestas armadas ni un menú de acciones:
+recibe la pregunta, piensa, consulta lo que necesita y contesta. Diez herramientas:
+
+- `plantel` — los vientres con lo que calcula el sistema (estado, eficiencia, bloques). Es lo mismo que ve el tablero, así no lo contradice.
+- `ficha` — todo de un animal, sea vaca, toro o ternero.
+- `buscar` — por RP tolerante, caravana, madre, padre o notas.
+- `consultar` — un SELECT para lo que lo anterior no cubre.
+- `relevar` — pesadas, sanidad, nacimientos, mediciones y notas con validación.
+- `destinar` — a dónde va cada animal (entiende "engorde", "gordas", "corral" → terminación).
+- `escribir` — correcciones puntuales por SQL, después de verificar.
+- `crear_tablero` — una página con tablas, publicada en `/t/:slug`.
+- `exportar_archivo` — un Excel, CSV o imprimible. Devuelve el link.
+- `recordar` — guarda lo que le enseñás del campo.
+
+**Archivos.** Le podés mandar cualquier cosa, por el chat del tablero (clip,
+arrastrar o pegar) o por WhatsApp: **fotos** (la libreta, la balanza, un
+animal), **PDF** (informes, liquidaciones), **Excel, CSV y TSV** (planillas de
+pesadas, nacimientos, sanidad), **Word y texto**. Fotos y PDF los ve el modelo
+directamente; las planillas las lee, te dice qué contienen y las carga con la
+misma validación que Relevar cuando confirmás (herramientas `leer_adjunto` e
+`importar_adjunto`). Las fotos se achican en el navegador antes de subirse.
+Audio no: la API no transcribe. Los adjuntos quedan guardados (`/api/adjuntos`).
+
+**Memoria.** Lo que le contás ("al potrero 7 le decimos La Loma", "Hércules ya
+no se usa") lo guarda y lo usa en todas las respuestas. Se ve y se edita en la
+pestaña Archivos. Las conversaciones quedan guardadas por sesión del navegador
+(al recargar sigue) y por número de WhatsApp (últimas 48 horas).
+
+**En vivo.** El chat muestra qué está haciendo mientras piensa: "miro el
+plantel", "abro la ficha de 23", y la respuesta va apareciendo. Por
+`POST /api/chat/stream` (Server-Sent Events); `POST /api/chat` sigue
+devolviendo todo junto.
+
+**Caché.** El prompt tiene una parte estable (reglas, esquema, memoria) que se
+cachea y una cola volátil (fecha, conteos, calendario). Las llamadas repetidas
+salen mucho más baratas.
+
+Sabe de ganadería sin que nadie le cargue parámetros: la gestación son 283
+días, una vaca desteta un ternero por año, la eficiencia es el destete sobre
+el peso de la madre. El calendario del campo lo deduce de los propios registros.
+
+## Cuánto sale el bot
+
+Cada respuesta guarda sus tokens y el costo estimado en la tabla `uso_bot`. En el
+tablero, pestaña **Archivos**, la primera caja muestra lo de hoy, lo del mes, el
+promedio por consulta y cuánto ahorró el caché, con el detalle por día, por canal
+(tablero / WhatsApp) y por modelo. También en `GET /api/uso?desde=&hasta=`.
+
+### Por qué piensa Opus, y no un modelo más barato
+
+Se probó repartir: las consultas simples a Haiku, el análisis a Opus. En papel
+baja el gasto a la mitad. En la cancha no va, y la razón es una sola: **el que
+pregunta no tiene cómo darse cuenta de que la respuesta salió mal**. Si el bot
+dice que la 148 pesó 380, se le cree. Si carga un nacimiento y le erra el padre,
+queda mal cargado y se descubre un año después. Una respuesta floja cuesta mucho
+más que los centavos que ahorra.
+
+Así que de fábrica va todo a Opus (`MODELO_RUTEO=grande`). Para bajar el gasto,
+las perillas que **no** tocan la calidad del razonamiento:
+
+- El **caché** del prompt, que ya está y es lo que más baja (la parte estable no
+  se vuelve a cobrar entera en cada pregunta).
+- El **esfuerzo**: `ESFUERZO=low` para épocas de mucho volumen y consultas
+  simples, `medium` para el día a día.
+- En WhatsApp la conversación se corta a 48 horas: no arrastra meses de historia.
+
+El reparto entre dos modelos queda armado por si algún día el gasto molesta de
+verdad. Se enciende con `MODELO_RUTEO=auto` y funciona así: las consultas
+directas ("cuánto pesó la 148", "ficha de la 23") y las listas de `RP peso` van
+a Haiku; **todo lo que analiza o escribe va a Opus**, aunque el mensaje sea
+corto; las fotos y los PDF también; ante la duda, Opus. Si el barato se queda sin
+respuesta, la pregunta se rehace sola con Opus, salvo que ya haya escrito en la
+base (eso no se repite, para no cargar dos veces). En el tablero se ve el gasto
+abierto por modelo y cuánto ahorró el reparto; debajo de cada respuesta del chat
+dice qué modelo la contestó.
+
+`MODELO_RUTEO=simple` manda todo a Haiku: sirve para medir con `npm run evaluar`
+cuánto se pierde, no para usarlo así.
+
+El esfuerzo de Opus, en detalle:
+
+| Configuración | Costo relativo | Cuándo |
+|---|---|---|
+| `ESFUERZO=high` | 100% | preguntas difíciles, auditorías de datos |
+| `ESFUERZO=medium` (por defecto) | ~50% | el uso diario |
+| `ESFUERZO=low` | ~30% | consultas simples, mucho volumen |
+| `MODELO=claude-sonnet-5` + `ESFUERZO=high` | ~40% | alternativa: modelo más barato pensando a fondo |
+
+Después de cambiar, `npm run evaluar` mide si la calidad se mantuvo.
+
+Es una estimación con los precios de lista del modelo configurado. La cifra que se
+cobra está en la consola de Anthropic, en Settings → Usage.
+
+## Medir al bot
+
+```bash
+ANTHROPIC_API_KEY=sk-... npm run evaluar
+MODELO=claude-sonnet-5 ESFUERZO=medium npm run evaluar   # para comparar
+npm run evaluar -- vacias corral                          # sólo algunas
+```
+
+Corre las 20 preguntas de `datos/preguntas.js` contra la base de prueba (la
+respuesta correcta se calcula, no se adivina) e imprime cuántas acertó, los
+tokens y el costo aproximado. El informe queda en `datos/evaluaciones/`. Es
+la forma de saber si un cambio de modelo, esfuerzo o prompt mejoró o empeoró.
+
+## Enlace con el financiero (IMPROLUX / VIDELA)
+
+Tres flujos, todos en `finanzas.js`:
+
+1. **El financiero lee el stock de acá.** `GET /api/rodeo-resumen?campo=…` devuelve
+   por categoría y registro (PP / GENERAL) cuántos hay en plantel, cuántos están
+   marcados para venta y los **kilos promedio reales** (última pesada de cada uno,
+   si tiene menos de un año). Es el formato que ya lee el "sync-ade" del
+   financiero: en IMPROLUX poné la variable `ADE_URL` con la dirección de esta app
+   y apretá "Sincronizar con ADE" (o desde acá, en Archivos → "Mandar el stock al
+   financiero").
+2. **Las ventas van solas.** Cuando registrás una salida con precio (por el chat:
+   "salieron los 5 novillos al frigorífico, 8.500 dólares", o por
+   `POST /api/destinos/salida` con `{rps, fecha, precio_total | precio_por_cabeza, comprador, kg}`),
+   RODEO le manda al financiero una transacción `VENTA HACIENDA` con el detalle
+   (categorías, RP, kilos, comprador). Sin precio, no manda nada y lo dice.
+3. **El bot lee el financiero.** Herramienta `finanzas`: resumen del mes,
+   transacciones por concepto y fecha, stock valuado, cuentas, cheques. Así
+   contesta "cuánto gastamos en sanidad este ciclo" cruzando con el rodeo.
+
+Variables en Railway (en RODEO): `FINANZAS_URL` (la dirección del financiero),
+`FINANZAS_CAMPO` (cómo se llama este campo allá, ej. `AMAKAIK`), `FINANZAS_CLAVE`
+(opcional). Todo lo que va y viene queda anotado en la tabla `enlaces` y se ve
+en Archivos → "Enlace con el financiero".
+
+Para que el financiero valúe con los kilos reales en vez del estimado a mano, en
+su `sync-ade` hay que leer `kg_estimado` de lo que llega. En el bloque que
+recorre `lista`, después de `const venta = …`, agregar:
+
+```js
+const kg = parseFloat(it.kg_estimado) || 0;
+if (ex) { upd.run(plantel, venta, ex.id); if (kg) db.prepare("UPDATE stock_ganadero SET kg_estimado=? WHERE id=?").run(kg, ex.id); actualizados++; }
+else { ins.run(cat, reg, plantel, venta); if (kg) db.prepare("UPDATE stock_ganadero SET kg_estimado=? WHERE id=last_insert_rowid()").run(kg); creados++; }
+```
+
+(reemplaza el `if (ex) … else …` que ya está).
+
+## Dentro del portal RODEO (login por organización)
+
+El portal (repo `rodeo`, con login, organizaciones y usuarios) muestra el sistema
+ganadero de cada organización en un iframe, con `?campo=<clave>&org=<slug>`. Este
+tablero está hecho para eso: lee `campo` de la URL y muestra **sólo los campos de
+la empresa de ese campo** (`/api/campos?de_campo=…`), así cada organización ve los
+suyos. También acepta `?empresa=<clave>` para entrar directo a una empresa.
+
+Para pasar una organización al tablero nuevo, en el portal (Admin → organización):
+
+| Campo del portal | Valor |
+|---|---|
+| Backend ganadero (URL) | la dirección de esta app, ej. `https://angus-del-este-production.up.railway.app` |
+| Clave de campo ganadero | la clave en `CAMPOS`, ej. `angus_del_este` |
+| Frontend ganadero (URL) | la misma dirección de esta app, con barra final: `https://angus-del-este-production.up.railway.app/` |
+
+Si la clave de campo del portal no coincide, el backend usa la organización (`org=<slug>`) para elegir la empresa: por parecido de nombre, o con la variable `ORGANIZACIONES` (`{"cabana-amakaik":"gullo","angus-del-este":"improlux","las-tranqueras":"amakaik"}`).
+
+Y en esta app, `CAMPOS` con todos los campos de todas las organizaciones (cada
+uno con su `empresa`) y `EMPRESAS` con el financiero de cada una. Ejemplo con
+las tres organizaciones actuales:
+
+```json
+CAMPOS = {
+  "angus_del_este": {"nombre":"La Amistad","empresa":"improlux"},
+  "el_triunfo":     {"nombre":"El Triunfo","empresa":"gullo"},
+  "angus_la_posta": {"nombre":"Campito Videla","empresa":"gullo"},
+  "las_tranqueras": {"nombre":"Las Tranqueras","empresa":"amakaik"}
+}
+EMPRESAS = {
+  "improlux": {"nombre":"Improlux","razon_social":"Improlux SAS","finanzas_nombre":"Improlux",
+               "finanzas_url":"https://improlux-bot-production.up.railway.app","finanzas_campo":"LA AMISTAD"},
+  "gullo":    {"nombre":"Marcos Gullo","razon_social":"Marcos Gullo","finanzas_nombre":"Videla",
+               "finanzas_url":"https://angus-la-posta-production.up.railway.app","finanzas_campo":"LA POSTA"},
+  "amakaik":  {"nombre":"Amakaik SRL","razon_social":"Amakaik SRL","finanzas_nombre":"Amakaik",
+               "finanzas_url":"https://improlux-bot-production.up.railway.app","finanzas_campo":"LAS TRANQUERAS"}
+}
+```
+
+Cuando Improlux sume un segundo campo, se agrega a `CAMPOS` con
+`"empresa":"improlux"` y listo: aparece en el selector y en la pestaña Empresa
+de esa organización, sin tocar el portal. El chat único del portal (`/api/chat`)
+y el gateway (`/api/gan/*`, que inyecta `?campo=`) siguen funcionando igual.
+
+## Probar con la base real antes de desplegar
+
+1. En Railway, agregá la variable `RESPALDO_CLAVE` (una palabra cualquiera) y redesplegá lo que ya tenés, o hacelo junto con esta versión.
+2. Bajá una copia de la base:
+   ```bash
+   curl -o ~/rodeo/data/principal.db "https://TU-APP.up.railway.app/api/respaldo?clave=LA_CLAVE"
+   ```
+3. Corré el sistema en tu compu con esa copia (`DB_DIR=./data node server.js`) y revisá el tablero, las pestañas y el bot con tus animales de verdad. Nada de lo que hagas acá toca Railway.
+4. Cuando esté bien, subí los archivos al repo. Al arrancar, el servidor agrega solo las tablas y columnas nuevas a la base real, sin tocar los datos.
+
+Si tenés más de un campo, cada uno es un archivo (`/data/<clave>.db`) y se baja con `&campo=<clave>`.
+
+## WhatsApp
+
+El bot atiende por WhatsApp a través de Twilio. Para probarlo alcanza con el
+*sandbox* de Twilio (gratis, sin aprobación de Meta):
+
+1. Cuenta en twilio.com → Messaging → Try it out → **Send a WhatsApp message**.
+2. Desde tu teléfono, mandá al número del sandbox el código que te muestra (`join algo-algo`).
+3. En la pestaña **Sandbox settings**, en "When a message comes in" poné
+   `https://TU-APP.up.railway.app/webhook` (método POST) y guardá.
+4. En Railway, variables: `TWILIO_SID` y `TWILIO_TOKEN` (del panel de Twilio),
+   `WHATSAPP_PERMITIDOS` con tu número, `URL_PUBLICA` con la dirección de la app.
+
+Y ya está: le escribís como al chat del tablero. Recuerda la conversación de
+las últimas 48 horas por número, parte las respuestas largas, manda "Estoy
+mirando la base…" si tarda, y si le mandás una **foto de la libreta** la lee,
+te muestra qué entendió y carga cuando confirmás.
+
+### Un número por empresa, que atiende las dos cosas
+
+Cada empresa puede tener su propio número. El número decide el campo y, con él, la
+empresa y su financiero:
+
+| Variables | Número | Campo | Financiero |
+|---|---|---|---|
+| `TWILIO_NUMBER` + `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` | el principal | `CAMPO_DEFAULT` | el de esa empresa |
+| `WHATSAPP_POSTA` + `TWILIO_SID_POSTA` / `TWILIO_TOKEN_POSTA` | el de La Posta | `angus_la_posta` (o `WHATSAPP_CAMPO_POSTA`) | el de esa empresa |
+| `WHATSAPP_<SUFIJO>` … | otro más | por sufijo o `WHATSAPP_CAMPO_<SUFIJO>` | el de esa empresa |
+
+Al mismo número se le pregunta y se le carga **lo ganadero y lo financiero**: lo del
+campo va a la base del campo; lo de plata, al financiero de esa empresa
+(herramientas `finanzas` para leer y `finanzas_registrar` para cargar un gasto o un
+ingreso; las ventas de hacienda van con `destinar salida` y se mandan solas). Todos
+los números apuntan al mismo webhook: `https://TU-APP/webhook`.
+
+Un número atiende a una empresa: entra por uno de sus campos y desde ahí puede
+trabajar en los demás. Al bot se le dice el campo por su nombre ("cargá estas
+pesadas en El Triunfo", "¿cuántas vacas hay en Campito Videla?"); si nombran un
+campo de otra empresa, lo rechaza.
+
+El número se compara por los últimos 8 dígitos, así que da igual cómo esté
+escrito: `+598098610238` (con el 0 nacional) y `+59898610238` (como lo manda
+Twilio) son el mismo teléfono. Igual conviene guardarlo en formato internacional,
+sin el 0: `+59898610238`.
+
+Para ver a qué campo contesta cada número, sin mandar mensajes:
+
+```
+GET /api/whatsapp                      → todos los números, su campo y su empresa
+GET /api/whatsapp?to=+5491133334444    → qué pasaría con un mensaje a ese número
+```
+
+Si el número al que escriben no está configurado y hay varios, el bot **no adivina**:
+avisa que ese número no está asignado a un campo y no contesta con datos de otra
+empresa.
+
+El sandbox pide volver a mandar `join …` cada 72 horas y sólo desde números
+que se unieron. Para producción (número propio, sin códigos) se aprueba un
+remitente de WhatsApp Business en Twilio; el webhook es el mismo.
+
+## Para verificar que arrancó
+
+`/api/salud` devuelve cuántos animales, vientres, pesadas y archivos ve en cada campo.
